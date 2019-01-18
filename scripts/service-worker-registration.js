@@ -21,7 +21,9 @@ if ('serviceWorker' in navigator) {
     // Listen for messages from the service worker
     navigator.serviceWorker.addEventListener('message', (event) => {
         // Update Available
-        location.reload();
+        setTimeout(() => {
+            location.reload();
+        }, 5000);
     });
 
     // Delay registration until after the page has loaded, to ensure that our

@@ -14,30 +14,14 @@ const WHITELIST_CACHE = [
 ];
 
 function updateAvailable() {
-    self.clients.matchAll().then(function (clients){
-        clients.forEach(function(client){
+    self.clients.matchAll().then(function (clients) {
+        clients.forEach(function (client) {
             client.postMessage({update: true});
         });
     });
 }
 
-self.addEventListener('update', event => {
-    event.detail.response.clone().text().then((cachedBody) => {
-        fetch(event.detail.request)
-            .then(response => {
-                response.clone().text().then((networkBody) => {
-                    if (networkBody !== cachedBody) {
-                        caches.open(CACHE).then(cache => {
-                            cache.put(event.detail.request.url, response.clone());
-                        });
-                        updateAvailable();
-                    }
-                });
-            });
-    });
-});
-
-self.addEventListener('install', event => {
+self.addEventListener('install', function (event) {
     event.waitUntil(
         caches.open(CACHE)
             .then(cache => {
@@ -46,7 +30,7 @@ self.addEventListener('install', event => {
     );
 });
 
-self.addEventListener('activate', event => {
+self.addEventListener('activate', function (event) {
     const cacheWhitelist = [CACHE];
 
     event.waitUntil(
@@ -62,32 +46,39 @@ self.addEventListener('activate', event => {
     );
 });
 
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', function (event) {
     event.respondWith(
         caches.match(event.request)
-            .then(response => {
-                if (response) {
-                    self.dispatchEvent(
-                        new CustomEvent('update', {
-                            detail: {request: event.request, response: response}
-                        })
-                    );
-                    return response;
-                }
-                return fetch(event.request)
-                    .then(response => {
-                        if (response.status === 404) {
-                            return caches.match('pages/404.html');
-                        }
-                        return caches.open(CACHE)
-                            .then(cache => {
-                                cache.put(event.request.url, response.clone());
-                                return response;
-                            });
+            .then(function (response) {
+                    // Cache hit - return response
+                    if (response) {
+                        updateCache(event, response.clone());
+                        return response;
+                    }
+
+                    caches.open(CACHE).then(function (cache) {
+                        cache.add(event.request.url);
                     });
-            }).catch(error => {
-            console.log('Error, ', error);
-            return caches.match('pages/offline.html');
-        })
+                    return fetch(event.request);
+                }
+            )
     );
 });
+
+function updateCache(event, cachedResponse) {
+    caches.open(CACHE).then(function (cache) {
+        cache.delete(event.request.url).then(function () {
+            cache.add(event.request.url).then(function () {
+                cachedResponse.text().then(function (cachedBody) {
+                    caches.match(event.request).then(function (response) {
+                        response.text().then(function (liveBody) {
+                            if (liveBody !== cachedBody) {
+                                updateAvailable();
+                            }
+                        });
+                    });
+                });
+            });
+        });
+    });
+}
